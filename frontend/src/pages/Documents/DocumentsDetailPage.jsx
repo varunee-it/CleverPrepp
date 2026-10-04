@@ -1,0 +1,293 @@
+import React, { useState, useEffect } from 'react';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
+import documentService from '../../services/documentService';
+import Spinner from '../../components/common/Spinner';
+import toast from 'react-hot-toast';
+import { ArrowLeft, ExternalLink, MessageSquare, Wand2, BookOpen, BrainCircuit, Columns, SidebarClose, LayoutPanelLeft, Headphones, Clock } from 'lucide-react';
+import ChatInterface from '../../components/chat/ChatInterface';
+import AIActions from '../../components/ai/AIActions';
+import ErrorBoundary from '../../components/common/ErrorBoundary';
+import { BASE_URL } from '../../utils/apiPaths';
+import FlashcardManager from '../../components/flashcards/FlashcardManager';
+import QuizManager from '../../components/quizzes/QuizManager';
+import PodcastManager from '../../components/podcast/PodcastManager';
+import { useTour } from '../../context/TourContext';
+import useStudySession from '../../hooks/useStudySession';
+import { SOURCE_DOCUMENT, STATUS_RUNNING } from '../../constants/StudySessionConstants';
+
+const DocumentDetailPage = () => {
+  const { currentTabSelection, setCurrentTabSelection } = useTour();
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [document, setDocument] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const getInitialTab = () => {
+    const queryParams = new URLSearchParams(window.location.search);
+    const tab = queryParams.get('tab');
+    return tab || sessionStorage.getItem(`doc_tab_${id}`) || 'Content';
+  };
+  const [activeTab, setActiveTab] = useState(getInitialTab());
+
+  const { session, createSession, startSession, updateSession, setIsOverlayOpen } = useStudySession();
+
+  useEffect(() => {
+    if (currentTabSelection && currentTabSelection !== activeTab) {
+      setActiveTab(currentTabSelection);
+    }
+  }, [currentTabSelection, activeTab]);
+
+  // Synchronize document & activity to active focus session if running
+  useEffect(() => {
+    if (session && session.status === STATUS_RUNNING && document?.data) {
+      let activityType = session.activityType;
+      if (activeTab === "Content") activityType = "reading_pdf";
+      else if (activeTab === "Summary" || activeTab === "Chat") activityType = "viewing_notes";
+      else if (activeTab === "Flashcards") activityType = "reviewing_flashcards";
+      else if (activeTab === "Quizzes") activityType = "taking_quiz";
+      else if (activeTab === "Podcast") activityType = "listening_podcast";
+
+      if (
+        session.documentId !== document.data._id ||
+        session.activityType !== activityType
+      ) {
+        updateSession({
+          documentId: document.data._id,
+          documentTitle: document.data.title,
+          activityType
+        });
+      }
+    }
+  }, [activeTab, document, session?.status, updateSession]);
+
+  const handleStartFocus = () => {
+    const isSessionActive = session && ["created", "running", "paused"].includes(session.status);
+    if (isSessionActive) {
+      setIsOverlayOpen(true);
+      return;
+    }
+
+    let activityType = "reading_pdf";
+    if (activeTab === "Content") activityType = "reading_pdf";
+    else if (activeTab === "Summary" || activeTab === "Chat") activityType = "viewing_notes";
+    else if (activeTab === "Flashcards") activityType = "reviewing_flashcards";
+    else if (activeTab === "Quizzes") activityType = "taking_quiz";
+    else if (activeTab === "Podcast") activityType = "listening_podcast";
+
+    createSession({
+      mode: "smart",
+      duration: 1500,
+      documentId: document.data._id,
+      documentTitle: document.data.title,
+      activityType,
+      goal: `Study concept details in ${document.data.title}`,
+      source: SOURCE_DOCUMENT
+    });
+    startSession();
+    setIsOverlayOpen(true);
+  };
+
+  const handleTabClick = (tabId) => {
+    setActiveTab(tabId);
+    setCurrentTabSelection(tabId);
+  };
+
+  const handleBack = () => {
+    if (location.state?.from) {
+      navigate(location.state.from);
+    } else if (window.history.state && window.history.state.idx > 0) {
+      navigate(-1);
+    } else {
+      navigate("/documents");
+    }
+  };
+
+  useEffect(() => {
+    sessionStorage.setItem(`doc_tab_${id}`, activeTab);
+  }, [activeTab, id]);
+
+  useEffect(() => {
+    const queryParams = new URLSearchParams(window.location.search);
+    const tab = queryParams.get('tab');
+    if (tab) {
+      setActiveTab(tab);
+    }
+  }, [window.location.search]);
+
+  useEffect(() => {
+    const fetchDocumentDetails = async () => {
+      try {
+        const data = await documentService.getDocumentById(id);
+        setDocument(data);
+      } catch (error) {
+        toast.error('Failed to fetch document details.');
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDocumentDetails();
+  }, [id]);
+
+  const getPdfUrl = () => {
+    if (!document?.data) return null;
+    const token = localStorage.getItem("token");
+    const tokenParam = token ? `?token=${encodeURIComponent(token)}` : "";
+    return `${BASE_URL}/api/documents/${id}/file${tokenParam}`;
+  };
+
+  if (loading) {
+    return <div className="h-[60vh] flex items-center justify-center"><Spinner /></div>;
+  }
+
+  if (!document || !document.data) {
+    return (
+      <div className="text-center p-12 bg-white rounded-2xl border border-slate-200">
+        <p className="text-slate-500 mb-4">Document not found or unavailable.</p>
+        <Link to="/documents" className="text-emerald-600 font-medium hover:text-emerald-700">
+          Return to Library
+        </Link>
+      </div>
+    );
+  }
+
+  const pdfUrl = getPdfUrl();
+
+  const tabs = [
+    { id: 'Content', icon: BookOpen, label: 'Read' },
+    { id: 'Chat', icon: MessageSquare, label: 'AI Tutor' },
+    { id: 'Flashcards', icon: BrainCircuit, label: 'Flashcards' },
+    { id: 'Quizzes', icon: LayoutPanelLeft, label: 'Quiz' },
+    { id: 'Podcast', icon: Headphones, label: 'Podcast' },
+    { id: 'Summary', icon: Wand2, label: 'Notes' },
+  ];
+
+  return (
+    <div className={`flex flex-col -mx-4 -mt-4 sm:-mx-6 sm:-mt-6 lg:-mx-8 lg:-mt-8 ${activeTab === 'Content' ? 'h-[calc(100vh-6rem)] overflow-hidden' : 'min-h-[calc(100vh-6rem)]'}`}>
+      {/* Workspace Header */}
+      <div className="flex-none bg-white border-b border-slate-200 px-4 sm:px-6 py-3 flex items-center justify-between z-10 shadow-sm">
+        <div className="flex items-center gap-3 overflow-hidden">
+          <button 
+            onClick={handleBack} 
+            className="p-2 -ml-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg transition-colors shrink-0 cursor-pointer"
+            title="Go Back"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div className="flex items-center gap-3 overflow-hidden">
+            <h1 className="text-lg sm:text-xl font-bold text-slate-900 truncate">
+              {document.data.title}
+            </h1>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleStartFocus}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-bold shadow-md shadow-emerald-500/25 transition-all cursor-pointer"
+            title="Start Study Focus Session"
+          >
+            <Clock size={14} /> <span>Focus Mode</span>
+          </button>
+          <div className="hidden md:flex items-center px-4 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold text-slate-600">
+             Study Workspace
+          </div>
+        </div>
+
+        {pdfUrl && (
+          <a
+            href={pdfUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0 inline-flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 hover:text-slate-900 transition-colors shadow-sm ml-4"
+          >
+            <ExternalLink size={16} /> <span className="hidden sm:inline">Open External</span>
+          </a>
+        )}
+      </div>
+
+      {/* Tab Navigation */}
+      <div className="flex-none bg-white border-b border-slate-200 px-4 sm:px-6 pt-3">
+        <div className="flex overflow-x-auto hide-scrollbar gap-2 pb-3">
+          {tabs.map(tab => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => handleTabClick(tab.id)}
+                className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-xl whitespace-nowrap transition-all duration-200 ${
+                  isActive 
+                    ? 'bg-emerald-50 text-emerald-700 shadow-sm border border-emerald-200' 
+                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900 border border-transparent'
+                } ${
+                  tab.id === 'Summary' ? 'tour-tab-notes' :
+                  tab.id === 'Quizzes' ? 'tour-tab-quiz' :
+                  tab.id === 'Flashcards' ? 'tour-tab-flashcards' :
+                  tab.id === 'Podcast' ? 'tour-tab-podcast' : ''
+                }`}
+              >
+                <tab.icon size={18} className={isActive ? "text-emerald-600" : "text-slate-400"} />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Main Workspace Area */}
+      <div className={`flex-1 flex flex-col bg-slate-50/50 ${activeTab === 'Content' ? 'overflow-hidden' : ''}`}>
+        
+        {/* Content Tab (Full Width PDF) */}
+        {activeTab === 'Content' && (
+          <div className="flex-1 w-full h-full relative">
+            {pdfUrl ? (
+              <iframe
+                src={pdfUrl}
+                className="absolute inset-0 w-full h-full border-none"
+                title="Document Reader"
+                frameBorder="0"
+              />
+            ) : (
+              <div className="flex-1 flex items-center justify-center h-full">
+                <p className="text-slate-500">No PDF available for reading.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Other Study Tools */}
+        {activeTab !== 'Content' && (
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 custom-scrollbar">
+            <div className="w-full max-w-5xl mx-auto">
+              {activeTab === 'Chat' && <ChatInterface />}
+              {activeTab === 'Summary' && (
+                <ErrorBoundary>
+                  <AIActions />
+                </ErrorBoundary>
+              )}
+              {activeTab === 'Flashcards' && (
+                <ErrorBoundary>
+                  <FlashcardManager documentId={id} onTabChange={setActiveTab} />
+                </ErrorBoundary>
+              )}
+              {activeTab === 'Quizzes' && (
+                <ErrorBoundary>
+                  <QuizManager documentId={id} />
+                </ErrorBoundary>
+              )}
+              {activeTab === 'Podcast' && (
+                <ErrorBoundary>
+                  <PodcastManager documentId={id} documentTitle={document.data.title} />
+                </ErrorBoundary>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default DocumentDetailPage;
