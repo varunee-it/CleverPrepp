@@ -7,8 +7,10 @@
 
 | Team Member | Student ID / Role |
 | :--- | :---: |
-| **Varunee Agrawal** | `202512048` (Lead Developer) |
-| **Jayraj Dhadhal** | `202512043` (Full-Stack Engineer) |
+| **Varunee Agrawal** | `202512067` |
+| **Hardi Dhadhal** | `202512085`   |
+| **Shah krisha** | `202512064` |
+| **Shruti makwana** | `202512001`   |
 | **Dhirubhai Ambani University M.Sc. (IT)** | Project Batch 2024–2026 |
 | **Prof. Shruti Bhilare** | Faculty Project Guide |
 
