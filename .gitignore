@@ -1,0 +1,43 @@
+# General
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.tmp
+*.cache
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# Frontend
+dist/
+build/
+.vite/
+coverage/
+
+# Backend
+uploads/
+logs/
+*.log
+
+# Environment variables
+.env
+.env.*
+
+# Exclusions (Ensure these are NOT ignored)
+!src/
+!backend/controllers/
+!backend/routes/
+!backend/models/
+!backend/services/
+!package.json
+!package-lock.json
+
+# Temporary screenshot
+Screenshot*
+Screen Shot*
+
+# Scratch migration script
+backend/refactor.cjs

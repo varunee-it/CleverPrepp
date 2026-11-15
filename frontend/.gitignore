@@ -1,0 +1,22 @@
+# General
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.tmp
+*.cache
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# Frontend Build
+dist/
+build/
+.vite/
+coverage/
+
+# Environment
+.env
+.env.*
